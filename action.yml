@@ -19,18 +19,24 @@ inputs:
     default: "builder"
   DOCKER_PASS:
     required: true
+  QEMU_SETUP:
+    required: false
+    default: "true"    
 runs:
   using: "composite"
   steps:
 
     - name: Set up QEMU
       uses: docker/setup-qemu-action@v1
+      if: ${{ inputs.QEMU_SETUP == 'true' }}
 
     - name: setup docker context for buildx
       id: buildx-context
       shell: bash       
       run: |
         docker context create builders || true
+      if: ${{ inputs.QEMU_SETUP == 'true' }}
+  
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v1
@@ -44,18 +50,54 @@ runs:
         username: builder
         password: ${{ inputs.DOCKER_PASS }}
 
-    #- uses: actions/checkout@v2
 
-    - name: Build and push container
-      uses: docker/build-push-action@v3
+    - name: Docker meta
+      id: meta
+      uses: docker/metadata-action@v3
+      with:
+        images: ${{ inputs.PROJECT }}.${{ inputs.DOCKER_REPOSITORY_BASE }}/${{ inputs.APP }}-${{ inputs.SERVICE }}-${{ inputs.INSTANCE }}
+        flavor: |
+          latest=true
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=ref,event=${{ inputs.version }}
+          type=semver,pattern={{version}}
+          type=sha
+
+    - name: Build and push
+      id: docker_build
+      uses: docker/build-push-action@v2
       with:
         context: .
-        push: true
-        tags: |
-          ${{ inputs.PROJECT }}.${{ inputs.DOCKER_REPOSITORY_BASE }}/${{ inputs.APP }}-${{ inputs.SERVICE }}-${{ inputs.INSTANCE }}:${{ inputs.VERSION }}      
-          ${{ inputs.PROJECT }}.${{ inputs.DOCKER_REPOSITORY_BASE }}/${{ inputs.APP }}-${{ inputs.SERVICE }}-${{ inputs.INSTANCE }}:latest
-        cache-from:
-          ${{ inputs.PROJECT }}.${{ inputs.DOCKER_REPOSITORY_BASE }}/${{ inputs.APP }}-${{ inputs.SERVICE }}-${{ inputs.INSTANCE }}:latest
+        push: ${{ github.event_name != 'pull_request' }}
+        tags: ${{ steps.meta.outputs.tags }}
+
+    - name: set output
+      id: set_outputs
+      shell: bash
+      run: |
+        IMAGES="${{ steps.meta.outputs.tags }}"
+        IMAGES="${IMAGES//$'\n'/' '}"
+        IMAGES="${IMAGES//$'\r'/''}"
+        echo "::set-output name=IMAGES::$IMAGES"
+
+    - name: print tags
+      shell: bash
+      run: |
+        echo ${{ steps.set_outputs.outputs.IMAGES }}
+
+
+    # - name: Build and push container
+    #   uses: docker/build-push-action@v3
+    #   with:
+    #     context: .
+    #     push: true
+    #     tags: |
+    #       ${{ inputs.PROJECT }}.${{ inputs.DOCKER_REPOSITORY_BASE }}/${{ inputs.APP }}-${{ inputs.SERVICE }}-${{ inputs.INSTANCE }}:${{ inputs.VERSION }}      
+    #       ${{ inputs.PROJECT }}.${{ inputs.DOCKER_REPOSITORY_BASE }}/${{ inputs.APP }}-${{ inputs.SERVICE }}-${{ inputs.INSTANCE }}:latest
+    #     cache-from:
+    #       ${{ inputs.PROJECT }}.${{ inputs.DOCKER_REPOSITORY_BASE }}/${{ inputs.APP }}-${{ inputs.SERVICE }}-${{ inputs.INSTANCE }}:latest
 
           
 
