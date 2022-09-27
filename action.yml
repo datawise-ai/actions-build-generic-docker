@@ -44,7 +44,7 @@ runs:
         username: builder
         password: ${{ inputs.DOCKER_PASS }}
 
-    - uses: actions/checkout@v2
+    #- uses: actions/checkout@v2
 
     - name: Build and push container
       uses: docker/build-push-action@v3
