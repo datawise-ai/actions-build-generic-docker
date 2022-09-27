@@ -61,6 +61,7 @@ runs:
         tags: |
           type=ref,event=branch
           type=ref,event=pr
+          type=ref,event=tag          
           type=raw,value=${{ inputs.VERSION }}
           type=semver,pattern={{version}}
           type=sha
