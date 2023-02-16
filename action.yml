@@ -1,12 +1,12 @@
 name: "datawise-build-generic-docker"
 description: "datawise build and push generic container"
-inputs: 
-  PROJECT: 
+inputs:
+  PROJECT:
     required: true
   APP:
     required: true
   SERVICE:
-    required: true    
+    required: true
   INSTANCE:
     required: true
   VERSION:
@@ -14,18 +14,18 @@ inputs:
   DOCKER_REPOSITORY_BASE:
     required: true
     default: "docker.datawise.ai"
-  DOCKER_USER: 
+  DOCKER_USER:
     required: true
     default: "builder"
   DOCKER_PASS:
     required: true
   QEMU_SETUP:
     required: false
-    default: "true"   
+    default: "true"
 outputs:
-  images: 
+  images:
     description: "tagged images"
-    value: "${{ steps.set_outputs.outputs.IMAGES }}"     
+    value: "${{ steps.set_outputs.outputs.IMAGES }}"
 runs:
   using: "composite"
   steps:
@@ -36,11 +36,11 @@ runs:
 
     - name: setup docker context for buildx
       id: buildx-context
-      shell: bash       
+      shell: bash
       run: |
         docker context create builders || true
       if: ${{ inputs.QEMU_SETUP == 'true' }}
-  
+
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v1
@@ -65,7 +65,7 @@ runs:
         tags: |
           type=ref,event=branch
           type=ref,event=pr
-          type=ref,event=tag          
+          type=ref,event=tag
           type=raw,value=${{ inputs.VERSION }}
           type=semver,pattern={{version}}
           type=sha
@@ -78,7 +78,7 @@ runs:
         push: ${{ github.event_name != 'pull_request' }}
         tags: ${{ steps.meta.outputs.tags }}
         cache-from:
-          ${{ inputs.PROJECT }}.${{ inputs.DOCKER_REPOSITORY_BASE }}/${{ inputs.APP }}-${{ inputs.SERVICE }}-${{ inputs.INSTANCE }}:latest        
+          ${{ inputs.PROJECT }}.${{ inputs.DOCKER_REPOSITORY_BASE }}/${{ inputs.APP }}-${{ inputs.SERVICE }}-${{ inputs.INSTANCE }}:latest
 
     - name: set output
       id: set_outputs
@@ -93,7 +93,7 @@ runs:
       shell: bash
       run: |
         echo ${{ steps.set_outputs.outputs.IMAGES }}
-        docker history ${{ inputs.PROJECT }}.${{ inputs.DOCKER_REPOSITORY_BASE }}/${{ inputs.APP }}-${{ inputs.SERVICE }}-${{ inputs.INSTANCE }}:latest
+        docker history ${{ inputs.PROJECT }}.${{ inputs.DOCKER_REPOSITORY_BASE }}/${{ inputs.APP }}-${{ inputs.SERVICE }}-${{ inputs.INSTANCE }}:${{ inputs.INSTANCE }}
 
 
 
@@ -104,12 +104,7 @@ runs:
     #     context: .
     #     push: true
     #     tags: |
-    #       ${{ inputs.PROJECT }}.${{ inputs.DOCKER_REPOSITORY_BASE }}/${{ inputs.APP }}-${{ inputs.SERVICE }}-${{ inputs.INSTANCE }}:${{ inputs.VERSION }}      
+    #       ${{ inputs.PROJECT }}.${{ inputs.DOCKER_REPOSITORY_BASE }}/${{ inputs.APP }}-${{ inputs.SERVICE }}-${{ inputs.INSTANCE }}:${{ inputs.VERSION }}
     #       ${{ inputs.PROJECT }}.${{ inputs.DOCKER_REPOSITORY_BASE }}/${{ inputs.APP }}-${{ inputs.SERVICE }}-${{ inputs.INSTANCE }}:latest
     #     cache-from:
     #       ${{ inputs.PROJECT }}.${{ inputs.DOCKER_REPOSITORY_BASE }}/${{ inputs.APP }}-${{ inputs.SERVICE }}-${{ inputs.INSTANCE }}:latest
-
-          
-
-
-
