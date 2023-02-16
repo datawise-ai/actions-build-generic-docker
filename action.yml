@@ -93,6 +93,9 @@ runs:
       shell: bash
       run: |
         echo ${{ steps.set_outputs.outputs.IMAGES }}
+        docker history ${{ inputs.PROJECT }}.${{ inputs.DOCKER_REPOSITORY_BASE }}/${{ inputs.APP }}-${{ inputs.SERVICE }}-${{ inputs.INSTANCE }}:latest
+
+
 
 
     # - name: Build and push container
