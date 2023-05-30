@@ -58,21 +58,6 @@ runs:
       id: meta
       uses: docker/metadata-action@v3
       with:
-        images: ${{ steps.login-ecr.outputs.registry }}/${{ inputs.PROJECT }}-${{ inputs.APP }}-${{ inputs.SERVICE }}-${{ inputs.INSTANCE }}
-        flavor: |
-          latest=true
-        tags: |
-          type=ref,event=branch
-          type=ref,event=pr
-          type=ref,event=tag
-          type=raw,value=${{ inputs.VERSION }}
-          type=semver,pattern={{version}}
-          type=sha
-
-    - name: Docker meta
-      id: meta
-      uses: docker/metadata-action@v3
-      with:
         images: ${{ inputs.PROJECT }}.${{ inputs.DOCKER_REPOSITORY_BASE }}/${{ inputs.APP }}-${{ inputs.SERVICE }}-${{ inputs.INSTANCE }}
         flavor: |
           latest=true
