@@ -27,33 +27,46 @@ inputs:
     default: "."
   FILE:
     required: false
+    default: "Dockerfile"
+  NO_CACHE:
+    default: "GHA"
+  CHECKOUT:
+    default: "false"
 outputs:
+  tagged_image:
+    description: "tagged image"
+    value: "${{ steps.set_outputs.outputs.tagged_image }}"
+  shaonly:
+    description: "all tags"
+    value: "${{ steps.set_outputs.outputs.shaonly }}"
+  shaimg:
+    description: "all tags"
+    value: "${{ steps.set_outputs.outputs.shaimg }}"
   images:
     description: "tagged images"
     value: "${{ steps.set_outputs.outputs.IMAGES }}"
 runs:
   using: "composite"
   steps:
+    - name: Checkout repo
+      if: ${{ inputs.CHECKOUT == 'true' }}
+      uses: actions/checkout@v3
 
     - name: Set up QEMU
-      uses: docker/setup-qemu-action@v1
       if: ${{ inputs.QEMU_SETUP == 'true' }}
-
-    - name: setup docker context for buildx
-      id: buildx-context
-      shell: bash
-      run: |
-        docker context create builders || true
-      if: ${{ inputs.QEMU_SETUP == 'true' }}
-
+      uses: docker/setup-qemu-action@v3
 
     - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v1
-      with:
-        endpoint: builders
+      uses: docker/setup-buildx-action@v3
+
+    # - name: setup docker context for buildx
+    #   id: buildx-context
+    #   shell: bash
+    #   run: |
+    #     docker context create builders || true
 
     - name: Login to Registry
-      uses: docker/login-action@v2
+      uses: docker/login-action@v3
       with:
         registry: ${{ inputs.PROJECT }}.${{ inputs.DOCKER_REPOSITORY_BASE }}
         username: builder
@@ -61,7 +74,7 @@ runs:
 
     - name: Docker meta
       id: meta
-      uses: docker/metadata-action@v3
+      uses: docker/metadata-action@v5
       with:
         images: ${{ inputs.PROJECT }}.${{ inputs.DOCKER_REPOSITORY_BASE }}/${{ inputs.APP }}-${{ inputs.SERVICE }}-${{ inputs.INSTANCE }}
         flavor: |
@@ -75,16 +88,94 @@ runs:
           type=raw,value={{date 'YYYYMMDD'}}
           type=sha
 
-    - name: Build and push
-      id: docker_build
-      uses: docker/build-push-action@v2
+    - name: Docker meta
+      id: outshaonly
+      uses: docker/metadata-action@v5
+      with:
+        flavor: |
+          latest=false
+        tags: |
+          type=sha
+
+    - name: Docker meta
+      id: outshaimg
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ inputs.PROJECT }}.${{ inputs.DOCKER_REPOSITORY_BASE }}/${{ inputs.APP }}-${{ inputs.SERVICE }}-${{ inputs.INSTANCE }}
+        flavor: |
+          latest=false
+        tags: |
+          type=sha
+
+    - name: send info to summary
+      id: echo2summary
+      shell: bash
+      run: |
+          echo ''  >> $GITHUB_STEP_SUMMARY
+          echo ":rocket: action docker generic in aws :rocket:"  >>  $GITHUB_STEP_SUMMARY
+          echo ''  >> $GITHUB_STEP_SUMMARY
+          echo '| Variable | Value |'                        >> $GITHUB_STEP_SUMMARY
+          echo '| :---: | :---: | '                          >> $GITHUB_STEP_SUMMARY
+          echo '| ref | ${{ github.ref }} | '                >> $GITHUB_STEP_SUMMARY
+          echo '| ENV_GROUP | ${{ inputs.PROJECT }}-${{ inputs.DEPLOY_TARGET }} | '           >> $GITHUB_STEP_SUMMARY
+          echo '| PROJECT | ${{ inputs.PROJECT }} | '           >> $GITHUB_STEP_SUMMARY
+          echo '| APP | ${{ inputs.APP }} | '   >> $GITHUB_STEP_SUMMARY
+          echo '| SERVICE | ${{ inputs.SERVICE }} | '   >> $GITHUB_STEP_SUMMARY
+          echo '| INSTANCE | ${{ inputs.INSTANCE }} | '   >> $GITHUB_STEP_SUMMARY
+          echo '| BRANCH | ${{ github.ref_name }} | ' >> $GITHUB_STEP_SUMMARY
+          echo '| DEPLOY_TARGET | ${{ inputs.DEPLOY_TARGET }} | '           >> $GITHUB_STEP_SUMMARY
+          echo '| AWS_ACCESS | ${{ inputs.AWS_ACCESS }} | '           >> $GITHUB_STEP_SUMMARY
+          echo '| AWS_ZONE | ${{ inputs.AWS_ZONE }} | '           >> $GITHUB_STEP_SUMMARY
+          echo '| QEMU_SETUP | ${{ inputs.QEMU_SETUP }} | '           >> $GITHUB_STEP_SUMMARY
+          echo '| CONTEXT | ${{ inputs.CONTEXT }} | '           >> $GITHUB_STEP_SUMMARY
+          echo '| FILE | ${{ inputs.FILE }} | '           >> $GITHUB_STEP_SUMMARY
+          echo '| TO_IMAGE | ${{ steps.login-ecr.outputs.registry }}/${{ inputs.PROJECT }}-${{ inputs.APP }}-${{ inputs.SERVICE }}-${{ inputs.INSTANCE }} | '           >> $GITHUB_STEP_SUMMARY
+          echo '| RUN_BEFORE_BUILD | ${{ inputs.RUN_BEFORE_BUILD }} | '           >> $GITHUB_STEP_SUMMARY
+          export TAGS_WITH_NEWLINES="${{ steps.meta.outputs.tags }}"
+          for ATAG in  $( echo ${TAGS_WITH_NEWLINES} | tr '\n' ' ' ) ; do
+          echo "| TAGS | ${ATAG} | "           >> $GITHUB_STEP_SUMMARY
+          echo "| TAGS | ${ATAG} | "
+          done
+          echo '| NO_CACHE | ${{ inputs.NO_CACHE }} | '           >> $GITHUB_STEP_SUMMARY
+          echo ' '           >> $GITHUB_STEP_SUMMARY
+          echo ' '           >> $GITHUB_STEP_SUMMARY
+          [[ -f "${{ inputs.CONTEXT }}/${{ inputs.FILE }}" ]]  && (echo "* content - ${{ inputs.CONTEXT }}/${{ inputs.FILE }}" ; echo "\`\`\`" ; cat ${{ inputs.CONTEXT }}/${{ inputs.FILE }} ; echo "\`\`\`" ) >> $GITHUB_STEP_SUMMARY
+
+    - name: Build and push - NO CACHE
+      id: docker_build_no_cache
+      if: ${{ inputs.NO_CACHE == 'true' }}
+      uses: docker/build-push-action@v5
       with:
         context: ${{ inputs.CONTEXT }}
         file: ${{ inputs.FILE }}
-        push: ${{ github.event_name != 'pull_request' }}
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        no-cache: true
+
+    - name: Build and push WITH CACHE LEGACY
+      id: docker_build_legacy
+      if: ${{ inputs.NO_CACHE == 'LEGACY' }}
+      uses: docker/build-push-action@v5
+      with:
+        context: ${{ inputs.CONTEXT }}
+        file: ${{ inputs.FILE }}
+        push: true
         tags: ${{ steps.meta.outputs.tags }}
         cache-from:
           ${{ inputs.PROJECT }}.${{ inputs.DOCKER_REPOSITORY_BASE }}/${{ inputs.APP }}-${{ inputs.SERVICE }}-${{ inputs.INSTANCE }}:latest
+
+    - name: Build and push WITH CACHE GHA
+      id: docker_build_gha
+      if: ${{ inputs.NO_CACHE == 'GHA' }}
+      uses: docker/build-push-action@v5
+      with:
+        context: ${{ inputs.CONTEXT }}
+        file: ${{ inputs.FILE }}
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        no-cache: false
+        cache-from: type=gha
+        cache-to: type=gha
 
     - name: set output
       id: set_outputs
@@ -93,24 +184,19 @@ runs:
         IMAGES="${{ steps.meta.outputs.tags }}"
         IMAGES="${IMAGES//$'\n'/' '}"
         IMAGES="${IMAGES//$'\r'/''}"
-        echo "::set-output name=IMAGES::$IMAGES"
+        echo "IMAGES=${IMAGES}" >> $GITHUB_OUTPUT
+        echo "tagged_image=${{ env.REGISTRY}}/${{ env.REPOSITORY }}:${{ env.IMAGE_TAG }}" >> $GITHUB_OUTPUT
+        echo "shaonly=${{ steps.outshaonly.outputs.tags }}" >> $GITHUB_OUTPUT
+        echo "shaimg=${{ steps.outshaimg.outputs.tags }}" >> $GITHUB_OUTPUT
 
     - name: print tags
       shell: bash
       run: |
+        echo IMAGES
         echo ${{ steps.set_outputs.outputs.IMAGES }}
-#        docker history ${{ inputs.PROJECT }}.${{ inputs.DOCKER_REPOSITORY_BASE }}/${{ inputs.APP }}-${{ inputs.SERVICE }}-${{ inputs.INSTANCE }}:${{ inputs.INSTANCE }}
-
-
-
-
-    # - name: Build and push container
-    #   uses: docker/build-push-action@v3
-    #   with:
-    #     context: .
-    #     push: true
-    #     tags: |
-    #       ${{ inputs.PROJECT }}.${{ inputs.DOCKER_REPOSITORY_BASE }}/${{ inputs.APP }}-${{ inputs.SERVICE }}-${{ inputs.INSTANCE }}:${{ inputs.VERSION }}
-    #       ${{ inputs.PROJECT }}.${{ inputs.DOCKER_REPOSITORY_BASE }}/${{ inputs.APP }}-${{ inputs.SERVICE }}-${{ inputs.INSTANCE }}:latest
-    #     cache-from:
-    #       ${{ inputs.PROJECT }}.${{ inputs.DOCKER_REPOSITORY_BASE }}/${{ inputs.APP }}-${{ inputs.SERVICE }}-${{ inputs.INSTANCE }}:latest
+        echo tagged_image
+        echo ${{ steps.set_outputs.outputs.tagged_image }}
+        echo shaonly
+        echo ${{ steps.set_outputs.outputs.shaonly }}
+        echo shaimg
+        echo ${{ steps.set_outputs.outputs.shaimg }}
