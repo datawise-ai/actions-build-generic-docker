@@ -147,7 +147,7 @@ runs:
       uses: docker/build-push-action@v5
       with:
         context: ${{ inputs.CONTEXT }}
-        file: ${{ inputs.FILE }}
+        file: ${{ inputs.CONTEXT }}/${{ inputs.FILE }}
         push: true
         tags: ${{ steps.meta.outputs.tags }}
         no-cache: true
@@ -158,7 +158,7 @@ runs:
       uses: docker/build-push-action@v5
       with:
         context: ${{ inputs.CONTEXT }}
-        file: ${{ inputs.FILE }}
+        file: ${{ inputs.CONTEXT }}/${{ inputs.FILE }}
         push: true
         tags: ${{ steps.meta.outputs.tags }}
         cache-from:
